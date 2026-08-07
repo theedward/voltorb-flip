@@ -256,13 +256,15 @@ export default function Home() {
           <p className="solver-mode"><strong>LEVEL NOTE</strong> Level changes the game’s board mix, but not guaranteed deductions from these clues.</p>
           <button
             className="win-button"
-            disabled={!cluesReady || roundState !== "playing"}
+            disabled={!cluesReady || roundState !== "playing" || !cells.some((value) => value === 2 || value === 3)}
             onClick={() => {
               setRoundState("won");
               void recordResult("win");
             }}
+            title="Use only when the game announces that the board is cleared"
           >
-            Board cleared <span>+1 W</span>
+            <span><strong>Game says I won</strong><small>Manual result</small></span>
+            <i>Record win →</i>
           </button>
         </aside>
 
