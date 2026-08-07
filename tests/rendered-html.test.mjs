@@ -25,6 +25,8 @@ test("server-renders Voltorb Lab", async () => {
   assert.match(html, /Flip smarter/);
   assert.match(html, /Voltorb Flip solver/);
   assert.match(html, /Load example/);
+  assert.match(html, /COIN CASE/);
+  assert.match(html, /Dratini/);
   assert.doesNotMatch(html, /codex-preview|react-loading-skeleton/i);
 });
 

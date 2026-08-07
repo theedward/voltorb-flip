@@ -38,6 +38,7 @@ No screenshots. No tedious board recreation. Just enter the clues exactly as the
 - **Instant recalculation** — every reveal immediately narrows the board
 - **Fast input** — touch controls plus keyboard shortcuts
 - **Persistent record** — wins, losses, and win rate survive between sessions
+- **Coin Case goals** — compare your balance with any HeartGold Game Corner prize and add cleared-board payouts automatically
 - **Dramatic failure** — because hitting a Voltorb deserves a proper `KABOOM`
 - **Responsive design** — built for a phone beside your DS, as nature intended
 

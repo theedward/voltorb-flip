@@ -8,8 +8,44 @@ const SIZE = 5;
 const UNKNOWN = -1 as const;
 const emptyClues = (): Clue[] => Array.from({ length: SIZE }, () => ({ sum: null, bombs: null }));
 const emptyCells = (): CellValue[] => Array<CellValue>(SIZE * SIZE).fill(UNKNOWN);
-type RecordScore = { wins: number; losses: number };
+type RecordScore = {
+  wins: number;
+  losses: number;
+  coinBalance: number;
+  targetName: string;
+  targetCost: number;
+};
 type RoundState = "playing" | "lost" | "won";
+
+const PRIZES = [
+  { group: "Goldenrod", name: "Abra", cost: 200 },
+  { group: "Goldenrod", name: "Ekans (HeartGold)", cost: 700 },
+  { group: "Goldenrod", name: "Dratini", cost: 2100 },
+  { group: "Goldenrod", name: "TM90 · Substitute", cost: 2000 },
+  { group: "Goldenrod", name: "TM75 · Swords Dance", cost: 4000 },
+  { group: "Goldenrod", name: "TM44 · Rest", cost: 6000 },
+  { group: "Goldenrod", name: "TM35 · Flamethrower", cost: 10000 },
+  { group: "Goldenrod", name: "TM24 · Thunderbolt", cost: 10000 },
+  { group: "Goldenrod", name: "TM13 · Ice Beam", cost: 10000 },
+  { group: "Both corners", name: "Silk Scarf", cost: 1000 },
+  { group: "Both corners", name: "Wide Lens", cost: 1000 },
+  { group: "Both corners", name: "Zoom Lens", cost: 1000 },
+  { group: "Both corners", name: "Metronome", cost: 1000 },
+  { group: "Celadon", name: "Mr. Mime", cost: 3333 },
+  { group: "Celadon", name: "Eevee", cost: 6666 },
+  { group: "Celadon", name: "Porygon", cost: 9999 },
+  { group: "Celadon", name: "TM58 · Endure", cost: 2000 },
+  { group: "Celadon", name: "TM32 · Double Team", cost: 4000 },
+  { group: "Celadon", name: "TM10 · Hidden Power", cost: 5000 },
+  { group: "Celadon", name: "TM29 · Psychic", cost: 10000 },
+  { group: "Celadon", name: "TM74 · Gyro Ball", cost: 10000 },
+  { group: "Celadon", name: "TM68 · Giga Impact", cost: 15000 },
+] as const;
+
+function coinsFromCells(cells: CellValue[]) {
+  const multipliers = cells.filter((value) => value === 2 || value === 3);
+  return multipliers.length ? multipliers.reduce((coins, value) => coins * value, 1) : 0;
+}
 
 const demoBoard = [
   1, 1, 2, 0, 1,
@@ -130,10 +166,7 @@ export default function Home() {
     return best;
   }, [solved, cells]);
 
-  const currentCoins = useMemo(() => {
-    const multipliers = cells.filter((value) => value === 2 || value === 3);
-    return multipliers.length ? multipliers.reduce((coins, value) => coins * value, 1) : 0;
-  }, [cells]);
+  const currentCoins = useMemo(() => coinsFromCells(cells), [cells]);
 
   const cashOutAdvice = useMemo(() => {
     if (!solved || solved.total === 0 || currentCoins < 2) return null;
@@ -160,19 +193,39 @@ export default function Home() {
     setCells(emptyCells());
   }, []);
 
-  const recordResult = useCallback(async (result: "win" | "loss") => {
+  const recordResult = useCallback(async (result: "win" | "loss", coinsEarned = 0) => {
     setRecordSyncFailed(false);
     setRecord((current) => ({
       wins: (current?.wins ?? 0) + (result === "win" ? 1 : 0),
       losses: (current?.losses ?? 0) + (result === "loss" ? 1 : 0),
+      coinBalance: Math.min(50_000, (current?.coinBalance ?? 0) + (result === "win" ? coinsEarned : 0)),
+      targetName: current?.targetName ?? "Dratini",
+      targetCost: current?.targetCost ?? 2100,
     }));
     try {
       const response = await fetch("/api/record", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ result }),
+        body: JSON.stringify({ result, coinsEarned }),
       });
       if (!response.ok) throw new Error("Record update failed");
+      const payload = (await response.json()) as { record: RecordScore };
+      setRecord(payload.record);
+    } catch {
+      setRecordSyncFailed(true);
+    }
+  }, []);
+
+  const saveCoinGoal = useCallback(async (goal: Pick<RecordScore, "coinBalance" | "targetName" | "targetCost">) => {
+    setRecordSyncFailed(false);
+    setRecord((current) => current ? { ...current, ...goal } : { wins: 0, losses: 0, ...goal });
+    try {
+      const response = await fetch("/api/record", {
+        method: "PATCH",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(goal),
+      });
+      if (!response.ok) throw new Error("Coin goal update failed");
       const payload = (await response.json()) as { record: RecordScore };
       setRecord(payload.record);
     } catch {
@@ -198,7 +251,7 @@ export default function Home() {
     );
     if (clueInputsValid && nextSolved && nextSolved.total > 0 && hasRevealedMultiplier && !multipliersRemain) {
       setRoundState("won");
-      void recordResult("win");
+      void recordResult("win", coinsFromCells(nextCells));
     }
   };
 
@@ -252,6 +305,13 @@ export default function Home() {
         ? { eyebrow: "SAFE FLIP FOUND", title: "Green means go", detail: `${solved.cells.filter((cell, index) => cells[index] === UNKNOWN && cell.safe === 1).length} guaranteed safe ${solved.cells.filter((cell, index) => cells[index] === UNKNOWN && cell.safe === 1).length === 1 ? "tile" : "tiles"}.` }
         : { eyebrow: "RISK REQUIRED", title: "Best odds highlighted", detail: "The pulsing tile has the strongest survival odds, with multiplier potential breaking ties." };
 
+  const coinBalance = record?.coinBalance ?? 0;
+  const targetCost = record?.targetCost ?? 2100;
+  const targetName = record?.targetName ?? "Dratini";
+  const coinsRemaining = Math.max(0, targetCost - coinBalance);
+  const goalProgress = Math.min(100, Math.round(coinBalance / targetCost * 100));
+  const selectedPrize = PRIZES.find((prize) => prize.name === targetName && prize.cost === targetCost);
+
   return (
     <main>
       <header className="topbar">
@@ -300,6 +360,59 @@ export default function Home() {
               <small>Quitting preserves this round’s coins, but may affect your next level.</small>
             </div>
           )}
+          <section className={`coin-goal ${coinsRemaining === 0 ? "coin-goal--complete" : ""}`} aria-label="Coin Case prize goal">
+            <div className="coin-goal__heading">
+              <span>COIN CASE</span>
+              <strong>{goalProgress}%</strong>
+            </div>
+            <label>
+              <span>CURRENT BALANCE</span>
+              <input
+                inputMode="numeric"
+                value={coinBalance}
+                onChange={(event) => {
+                  const digits = event.target.value.replace(/\D/g, "").slice(0, 5);
+                  setRecord((current) => ({
+                    wins: current?.wins ?? 0,
+                    losses: current?.losses ?? 0,
+                    coinBalance: Math.min(50_000, Number(digits || 0)),
+                    targetName: current?.targetName ?? "Dratini",
+                    targetCost: current?.targetCost ?? 2100,
+                  }));
+                }}
+                onBlur={() => void saveCoinGoal({ coinBalance, targetName, targetCost })}
+                aria-label="Current Coin Case balance"
+              />
+            </label>
+            <label>
+              <span>TARGET PRIZE</span>
+              <select
+                value={selectedPrize ? `${selectedPrize.name}|${selectedPrize.cost}` : "custom"}
+                onChange={(event) => {
+                  if (event.target.value === "custom") return;
+                  const prize = PRIZES.find(({ name, cost }) => `${name}|${cost}` === event.target.value);
+                  if (prize) void saveCoinGoal({ coinBalance, targetName: prize.name, targetCost: prize.cost });
+                }}
+                aria-label="Target prize"
+              >
+                {["Goldenrod", "Celadon", "Both corners"].map((group) => (
+                  <optgroup key={group} label={group}>
+                    {PRIZES.filter((prize) => prize.group === group).map((prize) => (
+                      <option key={`${prize.name}-${prize.cost}`} value={`${prize.name}|${prize.cost}`}>
+                        {prize.name} · {prize.cost.toLocaleString()}
+                      </option>
+                    ))}
+                  </optgroup>
+                ))}
+                {!selectedPrize && <option value="custom">{targetName} · {targetCost.toLocaleString()}</option>}
+              </select>
+            </label>
+            <div className="coin-goal__bar" aria-hidden="true"><i style={{ width: `${goalProgress}%` }} /></div>
+            <div className="coin-goal__total">
+              <strong>{coinBalance.toLocaleString()} <small>/ {targetCost.toLocaleString()}</small></strong>
+              <span>{coinsRemaining === 0 ? "TARGET REACHED" : `${coinsRemaining.toLocaleString()} TO GO`}</span>
+            </div>
+          </section>
           <div className="legend">
             <div><span className="legend-swatch legend-swatch--safe" />Guaranteed safe</div>
             <div><span className="legend-swatch legend-swatch--best" />Best available</div>
@@ -311,7 +424,7 @@ export default function Home() {
             disabled={!clueInputsValid || roundState !== "playing" || !cells.some((value) => value === 2 || value === 3)}
             onClick={() => {
               setRoundState("won");
-              void recordResult("win");
+              void recordResult("win", currentCoins);
             }}
             title="Use only when the game announces that the board is cleared"
             aria-label="Record a win after the game announces that the board is cleared"
