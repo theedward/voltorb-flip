@@ -254,6 +254,16 @@ export default function Home() {
             <div><span className="legend-swatch legend-swatch--risk" />Voltorb risk</div>
           </div>
           <p className="solver-mode"><strong>LEVEL NOTE</strong> Level changes the game’s board mix, but not guaranteed deductions from these clues.</p>
+          <button
+            className="win-button"
+            disabled={!cluesReady || roundState !== "playing"}
+            onClick={() => {
+              setRoundState("won");
+              void recordResult("win");
+            }}
+          >
+            Board cleared <span>+1 W</span>
+          </button>
         </aside>
 
         <div className="game-area">

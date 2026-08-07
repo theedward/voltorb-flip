@@ -83,6 +83,9 @@ h1 em { color: var(--red); font-style: normal; }
 .legend-swatch--risk { background: linear-gradient(90deg, var(--red) 50%, transparent 50%); }
 .solver-mode { border-left: 2px solid var(--lime); margin-top: 28px !important; padding-left: 11px; font: 550 9px/1.55 var(--font-geist-mono), monospace !important; }
 .solver-mode strong { color: var(--lime); display: block; letter-spacing: .12em; }
+.win-button { width: 100%; margin-top: 18px; border: 1px solid rgba(201,240,77,.55); background: transparent; color: var(--lime); padding: 11px 10px; cursor: pointer; text-align: left; text-transform: uppercase; font: 750 9px var(--font-geist-mono), monospace; letter-spacing: .09em; display: flex; justify-content: space-between; }
+.win-button:hover:not(:disabled) { background: var(--lime); color: var(--ink); }
+.win-button:disabled { opacity: .25; cursor: default; }
 
 .game-area { min-width: 0; }
 .board-shell { display: grid; grid-template-columns: minmax(320px, 600px) 84px; grid-template-rows: minmax(320px, 600px) 84px; gap: 8px; width: min(100%, 692px); }
@@ -181,6 +184,7 @@ footer p { margin: 0; max-width: 520px; text-align: center; color: rgba(25,26,23
   .status-panel > p:not(.status-eyebrow) { margin: 0; }
   .possibility-count, .legend { display: none; }
   .solver-mode { display: none; }
+  .win-button { grid-column: 2; margin: 12px 0 0; max-width: 190px; }
   .board-shell { grid-template-columns: minmax(0, 1fr) 66px; grid-template-rows: minmax(0, calc(100vw - 48px)) 66px; gap: 5px; }
   .grid { gap: 5px; }
   .clue-card { padding: 4px; }
