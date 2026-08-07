@@ -1,4 +1,9 @@
-// Intentionally empty by default.
-// Add Drizzle tables here when the site actually needs a database.
-// See examples/d1/db/schema.ts for an opt-in example.
-export {};
+import { sql } from "drizzle-orm";
+import { integer, sqliteTable, text } from "drizzle-orm/sqlite-core";
+
+export const gameStats = sqliteTable("game_stats", {
+  id: integer("id").primaryKey(),
+  wins: integer("wins").notNull().default(0),
+  losses: integer("losses").notNull().default(0),
+  updatedAt: text("updated_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+});

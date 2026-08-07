@@ -1,12 +1,14 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { solveBoard, type CellValue, type Clue } from "./solver";
 
 const SIZE = 5;
 const UNKNOWN = -1 as const;
 const emptyClues = (): Clue[] => Array.from({ length: SIZE }, () => ({ sum: null, bombs: null }));
 const emptyCells = (): CellValue[] => Array<CellValue>(SIZE * SIZE).fill(UNKNOWN);
+type RecordScore = { wins: number; losses: number };
+type RoundState = "playing" | "lost" | "won";
 
 const demoBoard = [
   1, 1, 2, 0, 1,
@@ -85,6 +87,9 @@ export default function Home() {
   const [cells, setCells] = useState<CellValue[]>(emptyCells);
   const [brush, setBrush] = useState<0 | 1 | 2 | 3 | -1>(1);
   const [showHelp, setShowHelp] = useState(false);
+  const [record, setRecord] = useState<RecordScore | null>(null);
+  const [roundState, setRoundState] = useState<RoundState>("playing");
+  const [recordSyncFailed, setRecordSyncFailed] = useState(false);
   const boardRef = useRef<HTMLDivElement>(null);
 
   const solved = useMemo(() => solveBoard(rowClues, colClues, cells), [rowClues, colClues, cells]);
@@ -107,21 +112,81 @@ export default function Home() {
     return best;
   }, [solved, cells]);
 
-  const setCell = (index: number) => {
-    setCells((current) => current.map((value, i) => (i === index ? (value === brush ? UNKNOWN : brush) : value)));
-  };
-
-  const reset = () => {
+  const reset = useCallback(() => {
     setRowClues(emptyClues());
     setColClues(emptyClues());
     setCells(emptyCells());
+  }, []);
+
+  const recordResult = useCallback(async (result: "win" | "loss") => {
+    setRecordSyncFailed(false);
+    setRecord((current) => ({
+      wins: (current?.wins ?? 0) + (result === "win" ? 1 : 0),
+      losses: (current?.losses ?? 0) + (result === "loss" ? 1 : 0),
+    }));
+    try {
+      const response = await fetch("/api/record", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ result }),
+      });
+      if (!response.ok) throw new Error("Record update failed");
+      const payload = (await response.json()) as { record: RecordScore };
+      setRecord(payload.record);
+    } catch {
+      setRecordSyncFailed(true);
+    }
+  }, []);
+
+  const setCell = (index: number) => {
+    if (roundState !== "playing") return;
+    const previous = cells[index];
+    const next = previous === brush ? UNKNOWN : brush;
+    const nextCells = cells.map((value, i) => (i === index ? next : value));
+    setCells(nextCells);
+    if (next === 0 && previous !== 0) {
+      setRoundState("lost");
+      void recordResult("loss");
+      return;
+    }
+    const nextSolved = solveBoard(rowClues, colClues, nextCells);
+    const hasRevealedMultiplier = nextCells.some((value) => value === 2 || value === 3);
+    const multipliersRemain = nextSolved?.cells.some((cell, cellIndex) =>
+      nextCells[cellIndex] === UNKNOWN && cell.values[2] + cell.values[3] > 1e-12,
+    );
+    if (cluesReady && nextSolved && nextSolved.total > 0 && hasRevealedMultiplier && !multipliersRemain) {
+      setRoundState("won");
+      void recordResult("win");
+    }
   };
 
   const loadDemo = () => {
     setRowClues(cluesFromBoard(demoBoard, true));
     setColClues(cluesFromBoard(demoBoard, false));
     setCells(emptyCells());
+    setRoundState("playing");
   };
+
+  useEffect(() => {
+    let active = true;
+    fetch("/api/record")
+      .then((response) => {
+        if (!response.ok) throw new Error("Record unavailable");
+        return response.json() as Promise<{ record: RecordScore }>;
+      })
+      .then((payload) => { if (active) setRecord(payload.record); })
+      .catch(() => { if (active) setRecordSyncFailed(true); });
+    return () => { active = false; };
+  }, []);
+
+  useEffect(() => {
+    if (roundState === "playing") return;
+    const timeout = window.setTimeout(() => {
+      reset();
+      setRoundState("playing");
+    }, roundState === "lost" ? 2400 : 2000);
+    return () => window.clearTimeout(timeout);
+  }, [reset, roundState]);
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
@@ -151,6 +216,12 @@ export default function Home() {
           <span>VOLTORB<span>{"//"}</span>LAB</span>
         </a>
         <div className="top-actions">
+          <div className="record-chip" aria-label={`${record?.wins ?? 0} wins and ${record?.losses ?? 0} losses`} title={recordSyncFailed ? "Record will retry on the next result" : "Your persistent record"}>
+            <span>RECORD</span>
+            <strong><i>W</i> {record?.wins ?? "–"}</strong>
+            <strong><i>L</i> {record?.losses ?? "–"}</strong>
+            <small>{record && record.wins + record.losses > 0 ? `${Math.round(record.wins / (record.wins + record.losses) * 100)}%` : "—"}</small>
+          </div>
           <button className="text-button" onClick={loadDemo}>Load example</button>
           <button className="text-button" onClick={() => setShowHelp(true)}>How to use</button>
           <button className="reset-button" onClick={reset}>Reset board <span>↻</span></button>
@@ -165,7 +236,7 @@ export default function Home() {
         <p className="hero-copy">An exact, instant solver for the most deceptively stressful game in Johto. Enter the clues. Reveal what you know. Make the best move.</p>
       </section>
 
-      <section className="workspace" aria-label="Voltorb Flip solver">
+      <section className={`workspace workspace--${roundState}`} aria-label="Voltorb Flip solver">
         <aside className="status-panel">
           <div className="status-light" />
           <p className="status-eyebrow">{status.eyebrow}</p>
@@ -182,10 +253,11 @@ export default function Home() {
             <div><span className="legend-swatch legend-swatch--best" />Best available</div>
             <div><span className="legend-swatch legend-swatch--risk" />Voltorb risk</div>
           </div>
+          <p className="solver-mode"><strong>LEVEL NOTE</strong> Level changes the game’s board mix, but not guaranteed deductions from these clues.</p>
         </aside>
 
         <div className="game-area">
-          <div className="board-shell" ref={boardRef}>
+          <div className={`board-shell ${roundState !== "playing" ? "board-shell--locked" : ""}`} ref={boardRef}>
             <div className="grid board-grid">
               {cells.map((value, index) => {
                 const probability = solved?.cells[index];
@@ -198,6 +270,7 @@ export default function Home() {
                     key={index}
                     className={`tile ${isSafe ? "tile--safe" : ""} ${isBest ? "tile--best" : ""} ${!isUnknown ? "tile--revealed" : ""}`}
                     onClick={() => setCell(index)}
+                    disabled={roundState !== "playing"}
                     aria-label={`Row ${Math.floor(index / SIZE) + 1}, column ${(index % SIZE) + 1}${isUnknown && probability ? `, ${Math.round(probability.safe * 100)} percent safe` : ""}`}
                   >
                     {value === UNKNOWN ? (
@@ -224,6 +297,15 @@ export default function Home() {
               ))}
             </div>
             <div className="corner-mark"><span>Σ</span><small>CLUES</small></div>
+            {roundState !== "playing" && (
+              <div className={`round-result round-result--${roundState}`} role="status" aria-live="assertive">
+                <div className="result-burst" aria-hidden="true"><i /><i /><i /><i /><i /><i /><i /><i /></div>
+                {roundState === "lost" ? <VoltorbMark /> : <span className="result-crown">◆</span>}
+                <p>{roundState === "lost" ? "KABOOM" : "BOARD CLEARED"}</p>
+                <strong>{roundState === "lost" ? "Loss recorded" : "Win recorded"}</strong>
+                <small>New board incoming…</small>
+              </div>
+            )}
           </div>
 
           <div className="brush-bar" aria-label="Revealed tile value">
@@ -232,6 +314,7 @@ export default function Home() {
               <button
                 key={value}
                 onClick={() => setBrush(value)}
+                disabled={roundState !== "playing"}
                 className={brush === value ? "active" : ""}
                 aria-pressed={brush === value}
                 title={value === -1 ? "Clear tile (U)" : value === 0 ? "Voltorb (V)" : `Revealed ${value} (${value})`}
@@ -260,6 +343,7 @@ export default function Home() {
               <li><strong>Copy the edge clues.</strong> ◆ is the point total; the red face is the Voltorb count.</li>
               <li><strong>Flip a green tile.</strong> 100% means no possible matching board has a Voltorb there.</li>
               <li><strong>Record the result.</strong> Choose 1, 2, 3, or Voltorb below the board, then tap that tile.</li>
+              <li><strong>Your record is automatic.</strong> Voltorbs count as losses; uncovering every multiplier counts as a win. The next board appears after the result animation.</li>
             </ol>
             <button className="primary-button" onClick={() => setShowHelp(false)}>Got it — let’s flip</button>
           </section>
