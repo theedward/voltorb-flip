@@ -1,33 +1,111 @@
-# Voltorb Lab
+<div align="center">
 
-A fast, exact Voltorb Flip solver for Pokémon HeartGold and SoulSilver. Enter the five row clues and five column clues, record revealed tiles, and the app calculates every board that still fits.
+# 🔴 VOLTORB<span>//</span>LAB ⚡
 
-## What it shows
+### FLIP SMARTER. KEEP YOUR COINS.
 
-- Exact safe-flip probability for every unknown tile
-- Guaranteed-safe tiles highlighted in green
-- Best available move when no guaranteed move remains
-- Instant updates after every clue or revealed tile
-- Touch controls plus `1`, `2`, `3`, `V`, and `U` keyboard shortcuts
+**An exact, instant Voltorb Flip solver for Pokémon HeartGold & SoulSilver.**
 
-The solver generates valid patterns per row, then uses dynamic programming and column-bound pruning to count consistent boards and calculate tile marginals without brute-forcing all `4²⁵` grids.
+![TypeScript](https://img.shields.io/badge/TypeScript-191a17?style=for-the-badge&logo=typescript&logoColor=c9f04d)
+![React](https://img.shields.io/badge/React-191a17?style=for-the-badge&logo=react&logoColor=c9f04d)
+![Tests](https://img.shields.io/badge/tests-passing-c9f04d?style=for-the-badge&labelColor=191a17)
+![License](https://img.shields.io/badge/fan_project-df3b32?style=for-the-badge&labelColor=191a17)
 
-## Run locally
+```text
+       ╭─────╮
+     ╭─┤ ⚡  ⚡├─╮       ┌───┬───┬───┬───┬───┐
+    │  ╰──┬──╯  │       │100│ 82│100│ 64│ 91│
+    │  ╲  │  ╱  │       ├───┼───┼───┼───┼───┤
+    ╰──────┴─────╯       │ ? │ 3 │ ? │ ? │ 2 │
+       VOLTORB           └───┴───┴───┴───┴───┘
+```
 
-Requires Node.js 22.13 or newer.
+</div>
+
+---
+
+## ◆ What is this?
+
+Voltorb Flip is part logic puzzle, part calculated risk, and part extremely effective frustration machine. Voltorb Lab turns the ten edge clues and your revealed tiles into exact constraint probabilities—then points you toward guaranteed-safe flips or the best available gamble.
+
+No screenshots. No tedious board recreation. Just enter the clues exactly as they appear in-game and start flipping.
+
+## ⚡ Features
+
+- **Exact board enumeration** — considers every grid consistent with your clues
+- **Guaranteed-safe highlighting** — acid green means there is no possible Voltorb
+- **Best-move ranking** — balances survival odds with multiplier potential
+- **Instant recalculation** — every reveal immediately narrows the board
+- **Fast input** — touch controls plus keyboard shortcuts
+- **Persistent record** — wins, losses, and win rate survive between sessions
+- **Dramatic failure** — because hitting a Voltorb deserves a proper `KABOOM`
+- **Responsive design** — built for a phone beside your DS, as nature intended
+
+## 🎮 How to use it
+
+1. Copy the point total and Voltorb count for all five rows and columns.
+2. Flip any tile marked **100% SAFE**.
+3. Choose its revealed value below the board, then tap that tile.
+4. Repeat until every `2` and `3` is uncovered.
+5. If the game declares victory before the solver can infer it, press **Board cleared +1 W**.
+
+| Key | Action |
+|:---:|:-------|
+| `1` | Record a 1 |
+| `2` | Record a 2× multiplier |
+| `3` | Record a 3× multiplier |
+| `V` or `0` | Record a Voltorb and a loss |
+| `U` or `Backspace` | Clear a recorded tile |
+
+> [!TIP]
+> A line where **points + Voltorbs = 5** contains only `1`s and Voltorbs. It has no multipliers, so you can usually ignore it.
+
+## 🧠 How the solver works
+
+Brute-forcing every possible board would mean checking `4²⁵` grids. That is approximately **1.1 quadrillion** bad ideas.
+
+Voltorb Lab instead:
+
+1. Generates only the five-tile patterns that satisfy each row.
+2. Rejects patterns that conflict with revealed tiles.
+3. Combines rows using dynamic programming.
+4. Prunes partial boards that can no longer satisfy a column.
+5. Counts the remaining value frequencies for every tile.
+
+The displayed probability is exact across all clue-compatible layouts treated equally. Level-dependent board generation can affect the game’s true prior odds, but it cannot invalidate a move shown as guaranteed safe.
+
+## 🕹️ Run locally
+
+Requires **Node.js 22.13+**.
 
 ```bash
+git clone <your-repository-url>
+cd voltorb-flip
 npm install
 npm run dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000).
+Open **[localhost:3000](http://localhost:3000)**.
 
-## Validate
+## 🧪 Validate
 
 ```bash
 npm run lint
 npm test
 ```
 
-This is an unofficial fan-made utility. Pokémon and Voltorb are trademarks of their respective owners.
+The tests cover server rendering, known-board probability counts, safe-tile detection, and conflicting reveals.
+
+## 🧰 Stack
+
+`React 19` · `TypeScript` · `vinext` · `Cloudflare D1` · `Drizzle ORM` · `Tailwind CSS`
+
+---
+
+<div align="center">
+
+### 🔴 DON'T FLIP ANGRY. FLIP INFORMED. 🔴
+
+<sub>Unofficial fan-made utility. Pokémon, Voltorb, HeartGold, and SoulSilver are trademarks of their respective owners.</sub>
+
+</div>
