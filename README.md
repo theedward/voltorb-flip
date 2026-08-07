@@ -79,7 +79,7 @@ The displayed probability is exact across all clue-compatible layouts treated eq
 Requires **Node.js 22.13+**.
 
 ```bash
-git clone <your-repository-url>
+git clone https://github.com/theedward/voltorb-flip.git
 cd voltorb-flip
 npm install
 npm run dev
