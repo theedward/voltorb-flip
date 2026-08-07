@@ -9,7 +9,7 @@
 ![TypeScript](https://img.shields.io/badge/TypeScript-191a17?style=for-the-badge&logo=typescript&logoColor=c9f04d)
 ![React](https://img.shields.io/badge/React-191a17?style=for-the-badge&logo=react&logoColor=c9f04d)
 ![Tests](https://img.shields.io/badge/tests-passing-c9f04d?style=for-the-badge&labelColor=191a17)
-![License](https://img.shields.io/badge/fan_project-df3b32?style=for-the-badge&labelColor=191a17)
+[![License: MIT](https://img.shields.io/badge/license-MIT-df3b32?style=for-the-badge&labelColor=191a17)](LICENSE)
 
 ```text
         ╭─────────╮
