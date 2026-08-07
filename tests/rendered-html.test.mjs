@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { solveBoard } from "../app/solver.ts";
+import { validateClues } from "../app/validation.ts";
 
 async function render() {
   const workerUrl = new URL("../dist/server/index.js", import.meta.url);
@@ -60,4 +61,16 @@ test("solver rejects a revealed tile that conflicts with its clues", () => {
   const cells = Array(25).fill(-1);
   cells[0] = 0;
   assert.equal(solveBoard(clues, clues, cells)?.total, 0);
+});
+
+test("clue validation catches impossible lines and mismatched axes", () => {
+  const valid = Array.from({ length: 5 }, () => ({ sum: 5, bombs: 0 }));
+  const impossibleLine = valid.map((clue) => ({ ...clue }));
+  impossibleLine[2] = { sum: 0, bombs: 0 };
+  assert.match(validateClues(impossibleLine, valid).rowIssues[2] ?? "", /at least 5/);
+
+  const mismatchedColumns = valid.map((clue) => ({ ...clue }));
+  mismatchedColumns[0] = { sum: 6, bombs: 0 };
+  assert.match(validateClues(valid, mismatchedColumns).globalIssues[0] ?? "", /Row points total 25/);
+  assert.equal(validateClues(valid, valid).valid, true);
 });

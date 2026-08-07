@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { solveBoard, type CellValue, type Clue } from "./solver";
+import { validateClues } from "./validation";
 
 const SIZE = 5;
 const UNKNOWN = -1 as const;
@@ -42,17 +43,22 @@ function VoltorbMark({ small = false }: { small?: boolean }) {
 function ClueInput({
   clue,
   label,
+  issue,
   onChange,
 }: {
   clue: Clue;
   label: string;
+  issue?: string | null;
   onChange: (next: Clue) => void;
 }) {
-  const parse = (value: string, max: number) =>
-    value === "" ? null : Math.min(max, Math.max(0, Number.parseInt(value, 10) || 0));
+  const errorId = `${label.toLowerCase().replace(" ", "-")}-error`;
+  const parse = (value: string, max: number, maxDigits: number) => {
+    const digits = value.replace(/\D/g, "").slice(0, maxDigits);
+    return digits === "" ? null : Math.min(max, Number.parseInt(digits, 10));
+  };
 
   return (
-    <div className="clue-card" aria-label={label}>
+    <div className={`clue-card ${issue ? "clue-card--invalid" : ""}`} aria-label={label} title={issue ?? undefined}>
       <label>
         <span className="clue-icon">◆</span>
         <input
@@ -60,8 +66,10 @@ function ClueInput({
           pattern="[0-9]*"
           maxLength={2}
           value={clue.sum ?? ""}
-          onChange={(event) => onChange({ ...clue, sum: parse(event.target.value, 15) })}
+          onChange={(event) => onChange({ ...clue, sum: parse(event.target.value, 15, 2) })}
           aria-label={`${label} point total`}
+          aria-invalid={Boolean(issue)}
+          aria-describedby={issue ? errorId : undefined}
           placeholder="–"
         />
       </label>
@@ -72,11 +80,14 @@ function ClueInput({
           pattern="[0-9]*"
           maxLength={1}
           value={clue.bombs ?? ""}
-          onChange={(event) => onChange({ ...clue, bombs: parse(event.target.value, 5) })}
+          onChange={(event) => onChange({ ...clue, bombs: parse(event.target.value, 5, 1) })}
           aria-label={`${label} Voltorb count`}
+          aria-invalid={Boolean(issue)}
+          aria-describedby={issue ? errorId : undefined}
           placeholder="–"
         />
       </label>
+      {issue && <span className="sr-only" id={errorId}>{issue}</span>}
     </div>
   );
 }
@@ -92,10 +103,17 @@ export default function Home() {
   const [recordSyncFailed, setRecordSyncFailed] = useState(false);
   const boardRef = useRef<HTMLDivElement>(null);
 
-  const solved = useMemo(() => solveBoard(rowClues, colClues, cells), [rowClues, colClues, cells]);
-  const cluesReady = [...rowClues, ...colClues].every(
-    (clue) => clue.sum !== null && clue.bombs !== null,
+  const clueValidation = useMemo(() => validateClues(rowClues, colClues), [rowClues, colClues]);
+  const baseSolved = useMemo(
+    () => clueValidation.valid ? solveBoard(rowClues, colClues, emptyCells()) : null,
+    [clueValidation.valid, rowClues, colClues],
   );
+  const solved = useMemo(() => solveBoard(rowClues, colClues, cells), [rowClues, colClues, cells]);
+  const impossibleClues = clueValidation.valid && baseSolved?.total === 0;
+  const cluesReady = clueValidation.complete;
+  const clueInputsValid = clueValidation.valid && !impossibleClues;
+  const globalClueIssue = clueValidation.globalIssues[0]
+    ?? (impossibleClues ? "Those clues pass the totals check, but no possible 5×5 board matches them." : null);
 
   const bestIndex = useMemo(() => {
     if (!solved || solved.total === 0) return -1;
@@ -111,6 +129,30 @@ export default function Home() {
     });
     return best;
   }, [solved, cells]);
+
+  const currentCoins = useMemo(() => {
+    const multipliers = cells.filter((value) => value === 2 || value === 3);
+    return multipliers.length ? multipliers.reduce((coins, value) => coins * value, 1) : 0;
+  }, [cells]);
+
+  const cashOutAdvice = useMemo(() => {
+    if (!solved || solved.total === 0 || currentCoins < 2) return null;
+    const unknown = solved.cells
+      .map((cell, index) => ({
+        index,
+        cell,
+        factor: cell.values[1] + cell.values[2] * 2 + cell.values[3] * 3,
+      }))
+      .filter(({ index }) => cells[index] === UNKNOWN);
+    if (!unknown.length || unknown.some(({ cell }) => cell.safe === 1)) return null;
+    const best = unknown.reduce((winner, candidate) => candidate.factor > winner.factor ? candidate : winner);
+    if (best.factor > 1) return null;
+    return {
+      coins: currentCoins,
+      risk: Math.round((1 - best.cell.safe) * 100),
+      expectedCoins: currentCoins * best.factor,
+    };
+  }, [cells, currentCoins, solved]);
 
   const reset = useCallback(() => {
     setRowClues(emptyClues());
@@ -139,7 +181,7 @@ export default function Home() {
   }, []);
 
   const setCell = (index: number) => {
-    if (roundState !== "playing") return;
+    if (roundState !== "playing" || !clueInputsValid) return;
     const previous = cells[index];
     const next = previous === brush ? UNKNOWN : brush;
     const nextCells = cells.map((value, i) => (i === index ? next : value));
@@ -154,7 +196,7 @@ export default function Home() {
     const multipliersRemain = nextSolved?.cells.some((cell, cellIndex) =>
       nextCells[cellIndex] === UNKNOWN && cell.values[2] + cell.values[3] > 1e-12,
     );
-    if (cluesReady && nextSolved && nextSolved.total > 0 && hasRevealedMultiplier && !multipliersRemain) {
+    if (clueInputsValid && nextSolved && nextSolved.total > 0 && hasRevealedMultiplier && !multipliersRemain) {
       setRoundState("won");
       void recordResult("win");
     }
@@ -202,6 +244,8 @@ export default function Home() {
 
   const status = !cluesReady
     ? { eyebrow: "AWAITING CLUES", title: "Enter the edge numbers", detail: "The board updates the instant all 10 clues are filled." }
+    : !clueInputsValid
+      ? { eyebrow: "CHECK THE CLUES", title: "That board is impossible", detail: globalClueIssue ?? [...clueValidation.rowIssues, ...clueValidation.colIssues].find(Boolean) ?? "Correct the highlighted clue." }
     : !solved || solved.total === 0
       ? { eyebrow: "NO MATCH", title: "Something conflicts", detail: "Check the clues or tap a revealed tile again to clear it." }
       : solved.cells.some((cell, index) => cells[index] === UNKNOWN && cell.safe === 1)
@@ -248,6 +292,14 @@ export default function Home() {
               <strong>{solved.total.toLocaleString(undefined, { maximumFractionDigits: 0 })}</strong>
             </div>
           )}
+          {cashOutAdvice && (
+            <div className="cashout-card" role="status">
+              <span>QUIT WHILE AHEAD?</span>
+              <strong>Protect {cashOutAdvice.coins.toLocaleString()} coins</strong>
+              <p>The best remaining flip has {cashOutAdvice.risk}% Voltorb risk and an immediate expected value of {cashOutAdvice.expectedCoins.toFixed(1)} coins.</p>
+              <small>Quitting preserves this round’s coins, but may affect your next level.</small>
+            </div>
+          )}
           <div className="legend">
             <div><span className="legend-swatch legend-swatch--safe" />Guaranteed safe</div>
             <div><span className="legend-swatch legend-swatch--best" />Best available</div>
@@ -256,7 +308,7 @@ export default function Home() {
           <p className="solver-mode"><strong>LEVEL NOTE</strong> Level changes the game’s board mix, but not guaranteed deductions from these clues.</p>
           <button
             className="win-button"
-            disabled={!cluesReady || roundState !== "playing" || !cells.some((value) => value === 2 || value === 3)}
+            disabled={!clueInputsValid || roundState !== "playing" || !cells.some((value) => value === 2 || value === 3)}
             onClick={() => {
               setRoundState("won");
               void recordResult("win");
@@ -283,7 +335,7 @@ export default function Home() {
                     key={index}
                     className={`tile ${isSafe ? "tile--safe" : ""} ${isBest ? "tile--best" : ""} ${!isUnknown ? "tile--revealed" : ""}`}
                     onClick={() => setCell(index)}
-                    disabled={roundState !== "playing"}
+                    disabled={roundState !== "playing" || !clueInputsValid}
                     aria-label={`Row ${Math.floor(index / SIZE) + 1}, column ${(index % SIZE) + 1}${isUnknown && probability ? `, ${Math.round(probability.safe * 100)} percent safe` : ""}`}
                   >
                     {value === UNKNOWN ? (
@@ -301,12 +353,12 @@ export default function Home() {
             </div>
             <div className="grid row-clues">
               {rowClues.map((clue, index) => (
-                <ClueInput key={index} clue={clue} label={`Row ${index + 1}`} onChange={(next) => setRowClues((all) => all.map((item, i) => i === index ? next : item))} />
+                <ClueInput key={index} clue={clue} label={`Row ${index + 1}`} issue={clueValidation.rowIssues[index] ?? globalClueIssue} onChange={(next) => setRowClues((all) => all.map((item, i) => i === index ? next : item))} />
               ))}
             </div>
             <div className="grid col-clues">
               {colClues.map((clue, index) => (
-                <ClueInput key={index} clue={clue} label={`Column ${index + 1}`} onChange={(next) => setColClues((all) => all.map((item, i) => i === index ? next : item))} />
+                <ClueInput key={index} clue={clue} label={`Column ${index + 1}`} issue={clueValidation.colIssues[index] ?? globalClueIssue} onChange={(next) => setColClues((all) => all.map((item, i) => i === index ? next : item))} />
               ))}
             </div>
             <div className="corner-mark"><span>Σ</span><small>CLUES</small></div>
@@ -327,7 +379,7 @@ export default function Home() {
               <button
                 key={value}
                 onClick={() => setBrush(value)}
-                disabled={roundState !== "playing"}
+                disabled={roundState !== "playing" || !clueInputsValid}
                 className={brush === value ? "active" : ""}
                 aria-pressed={brush === value}
                 title={value === -1 ? "Clear tile (U)" : value === 0 ? "Voltorb (V)" : `Revealed ${value} (${value})`}
