@@ -12,12 +12,16 @@
 ![License](https://img.shields.io/badge/fan_project-df3b32?style=for-the-badge&labelColor=191a17)
 
 ```text
-       ╭─────╮
-     ╭─┤ ⚡  ⚡├─╮       ┌───┬───┬───┬───┬───┐
-    │  ╰──┬──╯  │       │100│ 82│100│ 64│ 91│
-    │  ╲  │  ╱  │       ├───┼───┼───┼───┼───┤
-    ╰──────┴─────╯       │ ? │ 3 │ ? │ ? │ 2 │
-       VOLTORB           └───┴───┴───┴───┴───┘
+          .-------------------.
+       .-'                     '-.
+     .'       \           /       '.       +-----+-----+-----+-----+-----+
+    /          \  _____  /          \      |100% | 82% |100% | 64% | 91% |
+   |------------\/-----\/------------|     +-----+-----+-----+-----+-----+
+   |                                   |    |  ?  |  3  |  ?  |  ?  |  2  |
+    \                                 /     +-----+-----+-----+-----+-----+
+     '.                             .'
+       '-._______________________.-'
+              V O L T O R B
 ```
 
 </div>
@@ -72,6 +76,32 @@ Voltorb Lab instead:
 3. Combines rows using dynamic programming.
 4. Prunes partial boards that can no longer satisfy a column.
 5. Counts the remaining value frequencies for every tile.
+
+```mermaid
+flowchart TD
+    A["Enter row clues, column clues,<br/>and revealed tiles"] --> B{"Are the inputs valid?"}
+    B -- "No" --> C["Highlight the conflicting clues"]
+    B -- "Yes" --> D["Generate only five-cell patterns<br/>that satisfy each row"]
+    D --> E["Add one candidate row<br/>to the partial board"]
+    E --> F{"Can every column still<br/>reach its sum and Voltorb total?"}
+    F -- "No" --> G["Prune that branch"]
+    F -- "Yes, rows remain" --> E
+    F -- "Yes, board complete" --> H["Count the valid board"]
+    H --> I["Count 0, 1, 2, and 3<br/>appearances for every tile"]
+    I --> J["Calculate exact safety and<br/>multiplier probabilities"]
+    J --> K{"Any tile guaranteed safe?"}
+    K -- "Yes" --> L["Highlight it green"]
+    K -- "No" --> M["Rank the best available risk"]
+
+    classDef input fill:#f2efd9,stroke:#191a17,color:#191a17;
+    classDef process fill:#292b26,stroke:#c9f04d,color:#f2efd9;
+    classDef decision fill:#df3b32,stroke:#8f201d,color:#ffffff;
+    classDef result fill:#c9f04d,stroke:#191a17,color:#191a17;
+    class A input;
+    class D,E,H,I,J process;
+    class B,F,K decision;
+    class C,G,L,M result;
+```
 
 The displayed probability is exact across all clue-compatible layouts treated equally. Level-dependent board generation can affect the game’s true prior odds, but it cannot invalidate a move shown as guaranteed safe.
 
