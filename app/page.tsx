@@ -262,9 +262,10 @@ export default function Home() {
               void recordResult("win");
             }}
             title="Use only when the game announces that the board is cleared"
+            aria-label="Record a win after the game announces that the board is cleared"
           >
-            <span><strong>Game says I won</strong><small>Manual result</small></span>
-            <i>Record win →</i>
+            <strong>Record a win</strong>
+            <i>→</i>
           </button>
         </aside>
 
